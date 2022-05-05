@@ -377,12 +377,12 @@ if __name__ == '__main__':
     test_y = torch.load('test_y.pt')
 
     # input_size, hidden_size, n_layers, att_dim, initrange, output_size, rnn_type, seq_len, pad_size, n_filters, bi
-    model = Patient2Vec(6211, 256, 2, 0, 0, 2, 'GRU', 4, 10, 1, False)
+    model = Patient2Vec(6211, 256, 1, 0, 1, 2, 'GRU', 4, 10, 3, False)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.1)  
 
     # Train
-    n_epochs = 100
+    n_epochs = 25
     batch_size = 6336
     n_train_samples = test_y.shape[0]
     for epoch in range(n_epochs):
@@ -400,5 +400,6 @@ if __name__ == '__main__':
         train_loss += loss.item()
         train_loss = train_loss
         print('Epoch: {} \t Training Loss: {:.6f}'.format(epoch+1, train_loss))
-    p, r, f, roc_auc = eval_model(model, test_x, test_y)
-    print('Validation p: {:.2f}, r:{:.2f}, f: {:.2f}, roc_auc: {:.2f}'.format(p, r, f, roc_auc))
+        if epoch % 25 == 0:
+            p, r, f, roc_auc = eval_model(model, test_x, test_y)
+            print('Epoch: {} \t Validation p: {:.2f}, r:{:.2f}, f: {:.2f}, roc_auc: {:.2f}'.format(epoch+1, p, r, f, roc_auc))
