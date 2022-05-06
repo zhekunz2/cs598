@@ -1,6 +1,3 @@
-"""
-Patient2Vec: a self-attentive representation learning framework
-"""
 import os
 import pickle
 import time
@@ -16,6 +13,16 @@ import numpy as np
 import pandas as pd
 import csv
 from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--preprocess_data', default=False, action='store_true')
+parser.add_argument('--MLP', default=False, action='store_true')
+parser.add_argument('--LSTM', default=False, action='store_true')
+parser.add_argument('--LR', default=False, action='store_true')
+parser.add_argument('--GRU', default=False, action='store_true')
+parser.add_argument('--BiRNN', default=False, action='store_true')
+parser.add_argument('--Patient2Vec', default=False, action='store_true')
 
 class Patient2Vec(nn.Module):
     """
@@ -148,6 +155,67 @@ class Patient2Vec(nn.Module):
         out = F.softmax(linear_y, dim=-1)
         return out, alpha, beta
 
+class MLP(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, 2)
+
+    def forward(self, x, batch_size):
+        x = self.fc1(x)
+        x = self.fc2(x)
+        return x, x, x
+
+class Logreg(nn.Module):
+    def __init__(self, input_size):
+        super(Logreg, self).__init__()
+        self.fc1 = nn.Linear(input_size, 2)
+
+    def forward(self, x, batch_size):
+        x = self.fc1(x)
+        return x, x, x
+
+class RNNModel(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(RNNModel, self).__init__()
+        self.rnn = nn.RNN(
+            input_size, hidden_size, batch_first=True, bidirectional = True
+        )
+        self.fc = nn.Linear(2*hidden_size, 2)
+
+    def forward(self, x, batch_size):
+        x, _ = self.rnn(x)
+        x = x[:, -1, :]
+        x = self.fc(x)
+        return x, x, x
+
+class GRUModel(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(GRUModel, self).__init__()
+        self.rnn = nn.GRU(
+            input_size, hidden_size, batch_first=True
+        )
+        self.fc = nn.Linear(hidden_size, 2)
+
+    def forward(self, x, batch_size):
+        x, _ = self.rnn(x)
+        x = x[:, -1, :]
+        x = self.fc(x)
+        return x, x, x
+
+class LSTMModel(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(LSTMModel, self).__init__()
+        self.rnn = nn.LSTM(
+            input_size, hidden_size, batch_first=True
+        )
+        self.fc = nn.Linear(hidden_size, 2)
+
+    def forward(self, x, batch_size):
+        x, _ = self.rnn(x)
+        x = x[:, -1, :]
+        x = self.fc(x)
+        return x, x, x
 
 def get_loss(pred, y, criterion, mtr, a=0.5):
     """
@@ -201,15 +269,11 @@ def prepare_data():
     print(final_table)
 
     final_table = final_table.values.tolist()
-    final_table = final_table[:10000]
 
     # convert DIAG_CODES/PROC_CODES/DRG_CODES to list of int
-    diag_map = {}
-    proc_map = {}
-    drg_map = {}
-    unique_drg_id = 0
-    unique_diag_id = 0
-    unique_proc_id = 0
+    diag_count_map = {}
+    proc_count_map = {}
+    drg_count_map = {}
 
     current_visit = 0
     current_patient = -1
@@ -232,21 +296,63 @@ def prepare_data():
 
         for i in DRG_CODES:
             new_drg_codes.append(int(i))
-            if int(i) not in drg_map.keys():
-                drg_map[int(i)] = unique_drg_id
-                unique_drg_id += 1
+            if int(i) not in drg_count_map.keys():
+                drg_count_map[int(i)] = 1
+            else:
+                drg_count_map[int(i)] += 1
 
         for i in DIAG_CODES:
-            if i not in diag_map.keys():
-                diag_map[i] = unique_diag_id
-                unique_diag_id += 1
-            new_diag_codes.append(int(diag_map[i]))
+            new_diag_codes.append(i)
+            if i not in diag_count_map.keys():
+                diag_count_map[i] = 1
+            else:
+                diag_count_map[i] += 1
 
         for i in PROC_CODES:
-            if i not in proc_map.keys():
-                proc_map[i] = unique_proc_id
-                unique_proc_id += 1
-            new_proc_codes.append(int(proc_map[i]))
+            new_proc_codes.append(i)
+            if i not in proc_count_map.keys():
+                proc_count_map[i] = 1
+            else:
+                proc_count_map[i] += 1
+        
+        admission[3] = new_drg_codes
+        admission[4] = new_diag_codes
+        admission[5] = new_proc_codes
+
+    diag_map = {}
+    proc_map = {}
+    drg_map = {}
+    unique_drg_id = 0
+    unique_diag_id = 0
+    unique_proc_id = 0
+
+    for admission in final_table:
+        # SUBJECT_ID  HADM_ID  ADMITTIME  DRG_CODE  DIAG_CODES   PROC_CODES
+        
+        new_drg_codes = []
+        new_diag_codes = []
+        new_proc_codes = []
+
+        for i in admission[3]:
+            if drg_count_map[i] > 69:
+                if int(i) not in drg_map.keys():
+                    drg_map[int(i)] = unique_drg_id
+                    unique_drg_id += 1
+                new_drg_codes.append(i)
+
+        for i in DIAG_CODES:
+            if diag_count_map[i] > 19:
+                if i not in diag_map.keys():
+                    diag_map[i] = unique_diag_id
+                    unique_diag_id += 1
+                new_diag_codes.append(i)
+
+        for i in PROC_CODES:
+            if proc_count_map[i] > 19:
+                if i not in proc_map.keys():
+                    proc_map[i] = unique_proc_id
+                    unique_proc_id += 1
+                new_proc_codes.append(i)
         
         admission[3] = new_drg_codes
         admission[4] = new_diag_codes
@@ -255,6 +361,8 @@ def prepare_data():
     # mark patient labels
     patient_map = {} # ID: [dates]
     for admission in final_table:
+        if (len(admission[3]) + len(admission[4]) + len(admission[5])) == 0:
+            continue
         date = admission[2].split(' ')[0]
         date = date.split('-')
         int_date = []
@@ -271,7 +379,7 @@ def prepare_data():
     id_map = {}
     unique_id = 0
     for i in patient_map.keys():
-        if len(patient_map[i]) >= 2:
+        if len(patient_map[i]) >= 3:
             oldest_date = patient_map[i][0]
             newest_date = patient_map[i][0]
             for date in patient_map[i]:
@@ -279,14 +387,11 @@ def prepare_data():
                     oldest_date = date
                 if not compare_dates(date, newest_date):
                     newest_date = date
-            label = oldest_date[0] > newest_date[0] + 1 or (oldest_date[0] > newest_date[0] and oldest_date[1] >= newest_date[1])
+            label = ((oldest_date[0] - newest_date[0]) * 12 + (oldest_date[1] - newest_date[1])) >= 18 
             patient_earliest_date_map[i] = newest_date
             patient_labels[i] = label
-        else:
-            patient_labels[i] = False
-            patient_earliest_date_map[i] = patient_map[i][0]
-        id_map[i] = unique_id
-        unique_id+=1
+            id_map[i] = unique_id
+            unique_id+=1
 
     # constructing input tensor
     n_drg = len(drg_map.keys())
@@ -295,11 +400,13 @@ def prepare_data():
     print(n_drg, n_diag, n_proc)
     # 1026 3925 1260
     input_tensor = torch.zeros(unique_id+1, 4, 10, n_drg + n_diag + n_proc)
-    visit_idx = [0, 0, 0, 0]
-    current_patient = -1
+    visit_idx_map = {}
     for admission in final_table:
         # SUBJECT_ID  HADM_ID  ADMITTIME  DRG_CODE  DIAG_CODES   PROC_CODES
-
+        if (len(admission[3]) + len(admission[4]) + len(admission[5])) == 0:
+            continue
+        if admission[0] not in id_map.keys():
+            continue
         first_date = patient_earliest_date_map[admission[0]]
         date = admission[2].split(' ')[0]
         date = date.split('-')
@@ -307,26 +414,20 @@ def prepare_data():
         for i in date:
             ad_date.append(int(i))
         
-        seq = 0
-        if ad_date[0] == first_date[0]:
-            # same year
-            seq = int((ad_date[1] - first_date[1]) / 3)
-        elif ad_date[0] == first_date[0] + 1 and ad_date[1] < first_date[1]:
-            seq = int((ad_date[1] - first_date[1] + 12) / 3)
-        else:
+        seq = int((ad_date[0] - first_date[0]) * 12 + (ad_date[1] - first_date[1]) / 3)
+        if seq > 3:
             continue
         
-        if not admission[0] == current_patient:
-            visit_idx = [0, 0, 0, 0]
-            current_patient = admission[0]
-    
+        if not admission[0] in visit_idx_map.keys():
+            visit_idx_map[admission[0]] = [0, 0, 0, 0]
+        visit_idx = visit_idx_map[admission[0]]
         for drg in admission[3]:
             input_tensor[id_map[admission[0]]][seq][visit_idx[seq]][drg_map[drg]] = 1
         for diag in admission[4]:
-            input_tensor[id_map[admission[0]]][seq][visit_idx[seq]][n_drg + diag] = 1
+            input_tensor[id_map[admission[0]]][seq][visit_idx[seq]][n_drg + diag_map[diag]] = 1
         for proc in admission[5]:
-            input_tensor[id_map[admission[0]]][seq][visit_idx[seq]][n_drg + n_diag + proc] = 1
-        visit_idx[seq] += 1
+            input_tensor[id_map[admission[0]]][seq][visit_idx[seq]][n_drg + n_diag + proc_map[proc]] = 1
+        visit_idx_map[admission[0]][seq] += 1
 
     y_tensor = torch.zeros(unique_id+1, dtype=torch.long)
     for i in patient_labels.keys():
@@ -334,6 +435,9 @@ def prepare_data():
     
     # input_tensor.shape [42210, 4, 23, xxx] y_tensor.shape = [42210]
     train_size = int(y_tensor.shape[0] / 5) * 4
+    idx = torch.randperm(y_tensor.shape[0])
+    input_tensor = input_tensor[idx]
+    y_tensor = y_tensor[idx]
     train_x = input_tensor[0:train_size, :, :]
     train_y = y_tensor[0:train_size]
 
@@ -351,55 +455,87 @@ def eval_model(model, test_x, test_y):
     y_true = torch.LongTensor()
     model.eval()
     n_test_samples = test_y.shape[0]
+    true_count = 0
     for i in range(n_test_samples):
         y_hat, _, _ = model(torch.unsqueeze(test_x[i], dim=0), 1)
         y_hat = torch.unsqueeze(y_hat[0][1], dim=0)
         y_score = torch.cat((y_score,  y_hat.detach().to('cpu')), dim=0)
         y_hat = (y_hat > 0.5).long()
+        if y_hat.detach().to('cpu') == torch.unsqueeze(test_y[i], dim=0).detach().to('cpu'):
+            true_count += 1
         y_pred = torch.cat((y_pred,  y_hat.detach().to('cpu')), dim=0)
         y_true = torch.cat((y_true, torch.unsqueeze(test_y[i], dim=0).detach().to('cpu')), dim=0)
 
     print('gold positive', torch.sum(test_y))
     print('predict positive', torch.sum(y_pred))
 
+    acc = true_count / n_test_samples
     p, r, f, _ = precision_recall_fscore_support(y_true, y_pred, average='binary')
     roc_auc = roc_auc_score(y_true, y_score)
-    return p, r, f, roc_auc
+    return acc, p, r, f, roc_auc
 
 if __name__ == '__main__':
-    # prepare_data()
-    train_x = torch.load('train_x.pt')
-    # train_x = torch.flatten(train_x, start_dim=1)
-    train_y = torch.load('train_y.pt')
+    args = parser.parse_args()
+    if args.preprocess_data:
+        prepare_data()
+    else:
+        train_x = torch.load('train_x.pt')
+        # train_x = torch.flatten(train_x, start_dim=1)
+        train_y = torch.load('train_y.pt')
 
-    test_x = torch.load('test_x.pt')
-    # test_x = torch.flatten(test_x, start_dim=1)
-    test_y = torch.load('test_y.pt')
+        test_x = torch.load('test_x.pt')
+        # test_x = torch.flatten(test_x, start_dim=1)
+        test_y = torch.load('test_y.pt')
+        print(train_x.shape)
+        # input_size, hidden_size, n_layers, att_dim, initrange, output_size, rnn_type, seq_len, pad_size, n_filters, bi
+        num_features = train_x.shape[3]
+        if args.Patient2Vec:
+            model = Patient2Vec(train_x.shape[3], 256, 1, 0, 2, 2, 'GRU', 4, 10, 3, False, dropout_p=0)
+        elif args.MLP:
+            model = MLP(40 *num_features, 256)
+            train_x = train_x.view(train_x.shape[0], 40* num_features)
+            test_x = test_x.view(test_x.shape[0], 40* num_features)
+        elif args.LR:
+            model = Logreg(40 *num_features)
+            train_x = train_x.view(train_x.shape[0], 40* num_features)
+            test_x = test_x.view(test_x.shape[0], 40* num_features)
+        elif args.GRU:
+            model = GRUModel(10 *num_features, 256)
+            train_x = train_x.view(train_x.shape[0], 4, 10* num_features)
+            test_x = test_x.view(test_x.shape[0], 4, 10* num_features)  
+        elif args.LSTM:
+            model = LSTMModel(10 *num_features, 256)
+            train_x = train_x.view(train_x.shape[0], 4, 10* num_features)
+            test_x = test_x.view(test_x.shape[0], 4, 10* num_features)  
+        elif args.BiRNN:
+            model = RNNModel(10 *num_features, 256)
+            train_x = train_x.view(train_x.shape[0], 4, 10* num_features)
+            test_x = test_x.view(test_x.shape[0], 4, 10* num_features)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.08)  
 
-    # input_size, hidden_size, n_layers, att_dim, initrange, output_size, rnn_type, seq_len, pad_size, n_filters, bi
-    model = Patient2Vec(6211, 256, 1, 0, 1, 2, 'GRU', 4, 10, 3, False)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)  
+        # Train
+        n_epochs = 501
+        batch_size = train_x.shape[0]
+        n_train_samples = test_y.shape[0]
+        for epoch in range(n_epochs):
+            model.train()
+            train_loss = 0
+            loss = None
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-    # Train
-    n_epochs = 25
-    batch_size = 6336
-    n_train_samples = test_y.shape[0]
-    for epoch in range(n_epochs):
-        model.train()
-        train_loss = 0
-        loss = None
-        # zero the parameter gradients
-        optimizer.zero_grad()
-
-        outputs, _, _ = model(train_x, batch_size)         
-        loss = criterion(outputs, train_y)
-        loss.backward()
-        optimizer.step()
-        # print statistics
-        train_loss += loss.item()
-        train_loss = train_loss
-        print('Epoch: {} \t Training Loss: {:.6f}'.format(epoch+1, train_loss))
-        if epoch % 25 == 0:
-            p, r, f, roc_auc = eval_model(model, test_x, test_y)
-            print('Epoch: {} \t Validation p: {:.2f}, r:{:.2f}, f: {:.2f}, roc_auc: {:.2f}'.format(epoch+1, p, r, f, roc_auc))
+            outputs, alpha, beta = model(train_x, batch_size)
+            if args.Patient2Vec:
+                loss = get_loss(outputs, train_y, criterion, beta)
+            else:
+                loss = criterion(outputs, train_y)
+            loss.backward()
+            optimizer.step()
+            # print statistics
+            train_loss += loss.item()
+            train_loss = train_loss
+            print('Epoch: {} \t Training Loss: {:.6f}'.format(epoch+1, train_loss))
+            if epoch % 25 == 0:
+                acc, p, r, f, roc_auc = eval_model(model, test_x, test_y)
+                print('Epoch: {} \t Validation acc: {:2f}, p: {:.2f}, r:{:.2f}, f: {:.2f}, roc_auc: {:.2f}'.format(epoch+1, acc, p, r, f, roc_auc))
