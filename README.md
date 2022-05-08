@@ -58,14 +58,14 @@ Table of results (no need to include additional experiments, but main reproducib
 
 `acc: Accuracy, p: Precision, r: Recall, f: F-beta score, roc_auc: AUC score`
 
-MLP: Validation acc: 0.710526, p: 0.79, r:0.71, f: 0.75, roc_auc: 0.78
+MLP: Validation acc: 0.71, p: 0.79, r:0.71, f: 0.75, roc_auc: 0.78
 
-Logreg: Validation acc: 0.707895, p: 0.79, r:0.71, f: 0.75, roc_auc: 0.77
+Logreg: Validation acc: 0.71, p: 0.79, r:0.71, f: 0.75, roc_auc: 0.77
 
-GRU RNN: Validation acc: 0.700000, p: 0.78, r:0.72, f: 0.75, roc_auc: 0.78
+GRU RNN: Validation acc: 0.70, p: 0.78, r:0.72, f: 0.75, roc_auc: 0.78
 
-LSTM RNN Validation acc: 0.700000, p: 0.78, r:0.72, f: 0.75, roc_auc: 0.76
+LSTM RNN Validation acc: 0.70, p: 0.78, r:0.72, f: 0.75, roc_auc: 0.76
 
-Bidirectional RNN: Validation acc: 0.702632, p: 0.81, r:0.68, f: 0.74, roc_auc: 0.78
+Bidirectional RNN: Validation acc: 0.70, p: 0.81, r:0.68, f: 0.74, roc_auc: 0.78
 
-Patient2Vec: Validation acc: 0.734092, p: 0.82, r:0.73, f: 0.74, roc_auc: 0.78
+Patient2Vec: Validation acc: 0.72, p: 0.82, r:0.73, f: 0.74, roc_auc: 0.78
