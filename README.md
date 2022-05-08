@@ -68,4 +68,4 @@ LSTM RNN Validation acc: 0.70, p: 0.78, r:0.72, f: 0.75, roc_auc: 0.76
 
 Bidirectional RNN: Validation acc: 0.70, p: 0.81, r:0.68, f: 0.74, roc_auc: 0.78
 
-Patient2Vec: Validation acc: 0.72, p: 0.82, r:0.73, f: 0.74, roc_auc: 0.78
+Patient2Vec: Validation acc: 0.72, p: 0.82, r:0.69, f: 0.74, roc_auc: 0.78
